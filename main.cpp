@@ -30,49 +30,6 @@ using namespace std;
 
 #define debug(x) cout << #x " is " << x << endl
 
-// Generic code
-
-typedef uint16_t u16;
-typedef uint32_t u32;
-typedef uint64_t u64;
-
-typedef int16_t i16;
-typedef int32_t i32;
-typedef int64_t i64;
-
-/**
- * Prints the values separated by spaces.
- */
-template <typename It, typename T = typename iterator_traits<It>::value_type>
-void print(It first, It last) {
-  copy(first, last, ostream_iterator<T>(cout, " "));
-  cout << '\n';
-}
-
-/**
- * Prints the values separated by newlines.
- */
-template <typename It, typename T = typename iterator_traits<It>::value_type>
-void print_lines(It first, It last) {
-  copy(first, last, ostream_iterator<T>(cout, "\n"));
-}
-
-/**
- * Ignores everything on std::cin until the next '\n'.
- */
-void cin_ignore_until_newline(void) {
-  cin.ignore(numeric_limits<streamsize>::max(), '\n');
-}
-
-template <typename K, typename V>
-struct PairHash {
-  size_t operator()(const pair<K, V> &p) const {
-    auto h1 = hash<K>{}(p.first);
-    auto h2 = hash<V>{}(p.second);
-    return h1 ^ (h2 << 1);
-  }
-};
-
 class TicTacToe {
   typedef uint8_t PlayerType;
   typedef uint32_t BoardType;
@@ -164,23 +121,44 @@ class TicTacToe {
     return won;
   }
 
-  // Returns in [0, 1], the higher the better for the player to move.
-  double evaluate() {
+  // Returns in [0, 255].
+  //
+  // The higher the better for the player to move.
+  //
+  // Specially, 255 means that the player can win with the next move.
+  uint8_t evaluate() {
+    const uint8_t win = numeric_limits<uint8_t>::max();
+    const PlayerType to_move = get_player_to_move();
     // Can win with the next move?
     if (winnable()) {
-      return 1.0;
+      return win;
     }
-    const PlayerType to_move = get_player_to_move();
-    double best = 0.0;
-    for (size_t move : enumerate_possibilities()) {
+    uint8_t best = 0;
+    for_all_possibilities([this, &win, &to_move, &best](const size_t move) {
       set(move, to_move);
-      double evaluation = 1.0 - evaluate();
+      const uint8_t evaluation = win - evaluate();
       best = max(best, evaluation);
       unset(move);
-    }
+    });
     // Decay the value of deeper games as these will take longer.
-    const double decay = 0.9;
-    return decay * best;
+    return best / 2;
+  }
+
+  void for_all_possibilities(function<void(size_t)> op) {
+    for (size_t i = 0; i < 9; i++) {
+      if (is_free(i)) {
+        op(i);
+      }
+    }
+  }
+
+  bool full() const {
+    for (size_t i = 0; i < 9; i++) {
+      if (is_free(i)) {
+        return false;
+      }
+    }
+    return true;
   }
 
   // Enumerates all empty positions in the board.
@@ -188,27 +166,30 @@ class TicTacToe {
     vector<size_t> possibilities;
     possibilities.reserve(9);
     for (size_t i = 0; i < 9; i++) {
-      if (get(i) == NONE) {
+      if (is_free(i)) {
         possibilities.push_back(i);
       }
     }
     return possibilities;
   }
 
+  bool is_free(size_t i) const { return get(i) == NONE; }
+
   // Makes the best possible play for the player to move.
   size_t get_best_play() {
     // Worst case: your opponent will win.
-    double best_so_far = 1.0;
-    size_t best_move = enumerate_possibilities()[0];
-    for (size_t move : enumerate_possibilities()) {
+    uint8_t best_so_far = 255;
+    size_t best_move = 0;
+    for_all_possibilities([this, &best_so_far, &best_move](const size_t move) {
       set(move, get_player_to_move());
-      double evaluation = evaluate();
-      if (evaluation < best_so_far) {
+      uint8_t evaluation = evaluate();
+      // Update when equal as the initial value of best_move may not be valid.
+      if (evaluation <= best_so_far) {
         best_so_far = evaluation;
         best_move = move;
       }
       unset(move);
-    }
+    });
     return best_move;
   }
 
@@ -227,11 +208,15 @@ class TicTacToe {
 
 ostream &operator<<(ostream &os, const TicTacToe &game) {
   for (int i = 0; i < 9; i++) {
+    if (i % 3 == 0) {
+      os << ' ';
+    }
     os << game.symbol(game.get(i));
     if (i % 3 == 2) {
       os << '\n';
     }
   }
+  os << '\n';
   return os;
 }
 
@@ -244,28 +229,149 @@ istream &operator>>(istream &is, TicTacToe &game) {
   return is;
 }
 
-typedef std::chrono::microseconds microseconds;
-using chrono::duration_cast;
+class Stopwatch {
+ private:
+  typedef chrono::high_resolution_clock Clock;
+  typedef chrono::nanoseconds Duration;
+  typedef Clock::time_point TimePoint;
 
-int main(void) {
-  ios_base::sync_with_stdio(false);
-  TicTacToe game;
-  size_t r;
-  size_t c;
-  cout << game;
-  while (!game.winnable()) {
-    cin >> r >> c;
-    game.set(3 * r + c, game.player('X'));
-    cout << "After you:" << '\n' << game;
-    const auto before = std::chrono::high_resolution_clock::now();
-    size_t best = game.get_best_play();
-    r = best / 3;
-    c = best % 3;
-    game.set(3 * r + c, game.player('O'));
-    const auto after = std::chrono::high_resolution_clock::now();
-    const auto delta = after - before;
-    cout << "Took " << duration_cast<microseconds>(delta).count() << " μs.\n";
-    cout << "After the algorithm:" << '\n' << game;
+  const string identifier = "";
+  bool paused = true;
+  Duration counter = Duration(0);
+  TimePoint beginning;
+
+  static string duration_to_string(Duration duration) {
+    const vector<string> units = {"ns", "μs", "ms", "s"};
+    int64_t value = duration.count();
+    auto it = units.begin();
+    while ((it + 1 != units.end()) && value >= 1000) {
+      it++;
+      value /= 1000;
+    }
+    stringstream ss;
+    ss << value << ' ' << *it;
+    return ss.str();
   }
+
+ public:
+  Stopwatch() : Stopwatch("") {}
+  Stopwatch(string id) : identifier(id) {}
+  void start() {
+    if (paused) {
+      beginning = Clock::now();
+      paused = false;
+    }
+  }
+
+  void pause() {
+    if (!paused) {
+      counter += Clock::now() - beginning;
+      paused = true;
+    }
+  }
+
+  void print() {
+    Duration count = counter;
+    if (!paused) {
+      count += (Clock::now() - beginning);
+    }
+    if (identifier != "") {
+      cout << identifier << " took ";
+    } else {
+      cout << "Took ";
+    }
+    cout << duration_to_string(count) << '.' << '\n';
+  }
+};
+
+int main(int argc, char **argv) {
+  ios_base::sync_with_stdio(false);
+
+  string argument = "play";
+  if (argc > 1) {
+    argument = string(argv[1], argv[1] + strlen(argv[1]));
+  }
+
+  map<string, function<void(void)>> actions;
+  map<string, string> helpers;
+
+  actions["help"] = [&actions, &helpers] {
+    const size_t width = 20;
+    for (auto p : actions) {
+      const string action = p.first;
+      cout << action;
+      for (size_t w = p.first.size(); w < width; w++) {
+        cout << " ";
+      }
+      cout << helpers[action] << '\n';
+    }
+  };
+  helpers["help"] = "Prints infromation about each possible action.";
+
+  actions["play"] = [&actions, &helpers] {
+    TicTacToe game;
+    bool x = true;
+    cout << game;
+    Stopwatch human("You");
+    Stopwatch computer("The computer");
+    while (game.winner() == game.player(' ') && !game.full()) {
+      if (x) {
+        human.start();
+        bool done = false;
+        size_t r;
+        size_t c;
+        while (!done) {
+          cout << "Move: ";
+          cin >> r >> c;
+          r--;
+          c--;
+          done = game.is_free(3 * r + c);
+        }
+        game.set(3 * r + c, game.player('X'));
+        human.pause();
+        cout << "After you:";
+      } else {
+        computer.start();
+        size_t best = game.get_best_play();
+        size_t r = best / 3;
+        size_t c = best % 3;
+        game.set(3 * r + c, game.player('O'));
+        computer.pause();
+        cout << "After the computer:";
+      }
+      cout << "\n\n";
+      cout << game;
+      x = !x;
+    }
+    human.print();
+    computer.print();
+  };
+  helpers["play"] = "Starts a game against the AI.";
+
+  actions["watch"] = [&actions, &helpers] {
+    TicTacToe game;
+    bool x = true;
+    cout << game;
+    Stopwatch stopwatch;
+    stopwatch.start();
+    while (!game.full()) {
+      size_t best = game.get_best_play();
+      size_t r = best / 3;
+      size_t c = best % 3;
+      char s = x ? 'X' : 'O';
+      x = !x;
+      game.set(3 * r + c, game.player(s));
+      cout << game;
+    }
+    stopwatch.print();
+  };
+  helpers["watch"] = "Outputs a game of the AI against the AI.";
+
+  if (actions.count(argument)) {
+    actions[argument]();
+  } else {
+    actions["help"]();
+  }
+
   return 0;
 }
