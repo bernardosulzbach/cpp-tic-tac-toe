@@ -1,0 +1,9 @@
+.idea/
+build/
+
+compile_commands.json
+
+*.pyc
+*.out
+*.hi
+*.o
