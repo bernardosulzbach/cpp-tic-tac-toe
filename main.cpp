@@ -165,19 +165,11 @@ class TicTacToe {
     return score;
   }
 
-  void for_all_possibilities(function<void(size_t)> op) {
-    for (size_t i = 0; i < 9; i++) {
-      if (is_free(i)) {
-        op(i);
-      }
-    }
-  }
-
   // Makes the best possible play for the player to move.
-  size_t get_best_play() {
+  int get_best_play() {
     // The bigger the better for the opponent.
     ScoreType best_so_far = WIN;
-    size_t best_move = 0;
+    int best_move = 0;
     for (int i = 0; i < TILES; i++) {
       if (is_free(i)) {
         set(i, get_player_to_move());
@@ -196,16 +188,16 @@ class TicTacToe {
     return best_move;
   }
 
-  PlayerType get(size_t i) const {
+  PlayerType get(int i) const {
     return (board >> get_shift(i)) & 3;
   }
 
-  bool is_free(size_t i) const {
+  bool is_free(int i) const {
     return get(i) == NONE;
   }
 
   bool is_full() const {
-    for (size_t i = 0; i < 9; i++) {
+    for (int i = 0; i < 9; i++) {
       if (is_free(i)) {
         return false;
       }
@@ -213,7 +205,7 @@ class TicTacToe {
     return true;
   }
 
-  void set(size_t i, PlayerType v) {
+  void set(int i, PlayerType v) {
     // Zero the position.
     unset(i);
     // Set to the player code.
@@ -221,7 +213,7 @@ class TicTacToe {
     board |= value << get_shift(i);
   }
 
-  void unset(size_t i) {
+  void unset(int i) {
     board &= ~(3 << get_shift(i));
   }
 };
@@ -342,8 +334,8 @@ int main(int argc, char **argv) {
       if (x) {
         human.start();
         bool done = false;
-        size_t r;
-        size_t c;
+        int r;
+        int c;
         while (!done) {
           cout << "Move: ";
           cin >> r >> c;
@@ -356,9 +348,9 @@ int main(int argc, char **argv) {
         cout << "After you:";
       } else {
         computer.start();
-        size_t best = game.get_best_play();
-        size_t r = best / 3;
-        size_t c = best % 3;
+        int best = game.get_best_play();
+        int r = best / 3;
+        int c = best % 3;
         game.set(3 * r + c, game.get_player('O'));
         computer.pause();
         cout << "After the computer:";
@@ -379,9 +371,9 @@ int main(int argc, char **argv) {
     Stopwatch stopwatch;
     stopwatch.start();
     while (!game.is_full()) {
-      size_t best = game.get_best_play();
-      size_t r = best / 3;
-      size_t c = best % 3;
+      int best = game.get_best_play();
+      int r = best / 3;
+      int c = best % 3;
       char s = x ? 'X' : 'O';
       x = !x;
       game.set(3 * r + c, game.get_player(s));
