@@ -38,14 +38,17 @@ class TicTacToe {
   const static PlayerType X = 1;
   const static PlayerType O = 2;
 
+  const static int WIN = 512;
+
   BoardType board;
+  const bool debugging = false;
 
   uint32_t get_shift(size_t s) const { return 2 * (8 - s); }
 
  public:
-  TicTacToe() : board(0) {}
+  TicTacToe(bool debug = false) : board(0), debugging(debug) {}
 
-  TicTacToe(string s) {
+  TicTacToe(string s, bool debug = false) : TicTacToe(debug) {
     for (int i = 0; i < 9; i++) {
       PlayerType v = player(s[i]);
       set(i, v);
@@ -121,27 +124,22 @@ class TicTacToe {
     return won;
   }
 
-  // Returns in [0, 255].
-  //
   // The higher the better for the player to move.
-  //
-  // Specially, 255 means that the player can win with the next move.
-  uint8_t evaluate() {
-    const uint8_t win = numeric_limits<uint8_t>::max();
+  int evaluate() {
     const PlayerType to_move = get_player_to_move();
     // Can win with the next move?
     if (winnable()) {
-      return win;
+      return WIN;
     }
-    uint8_t best = 0;
-    for_all_possibilities([this, &win, &to_move, &best](const size_t move) {
+    int best = 0;
+    for_all_possibilities([this, &to_move, &best](const size_t move) {
       set(move, to_move);
-      const uint8_t evaluation = win - evaluate();
+      const int evaluation = WIN - evaluate();
       best = max(best, evaluation);
       unset(move);
     });
     // Decay the value of deeper games as these will take longer.
-    return best / 2;
+    return 7 * best / 8;
   }
 
   void for_all_possibilities(function<void(size_t)> op) {
@@ -178,11 +176,11 @@ class TicTacToe {
   // Makes the best possible play for the player to move.
   size_t get_best_play() {
     // Worst case: your opponent will win.
-    uint8_t best_so_far = 255;
+    int best_so_far = WIN;
     size_t best_move = 0;
     for_all_possibilities([this, &best_so_far, &best_move](const size_t move) {
       set(move, get_player_to_move());
-      uint8_t evaluation = evaluate();
+      int evaluation = evaluate();
       // Update when equal as the initial value of best_move may not be valid.
       if (evaluation <= best_so_far) {
         best_so_far = evaluation;
@@ -190,6 +188,9 @@ class TicTacToe {
       }
       unset(move);
     });
+    if (debugging) {
+      cerr << "Evaluated to " << (int)best_so_far << '\n';
+    }
     return best_move;
   }
 
