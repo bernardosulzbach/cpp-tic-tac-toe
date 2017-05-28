@@ -308,10 +308,20 @@ int main(int argc, char **argv) {
     argument = string(argv[1], argv[1] + strlen(argv[1]));
   }
 
+  set<string> flags;
+  if (argc > 2) {
+    for (int i = 2; i < argc; i++) {
+      string flag(argv[i], argv[i] + strlen(argv[i]));
+      if (flag.size() > 2 && flag.substr(0, 2) == "--") {
+        flags.insert(flag);
+      }
+    }
+  }
+
   map<string, function<void(void)>> actions;
   map<string, string> helpers;
 
-  actions["help"] = [&actions, &helpers] {
+  actions["help"] = [&flags, &actions, &helpers] {
     const size_t width = 20;
     for (auto p : actions) {
       const string action = p.first;
@@ -324,8 +334,8 @@ int main(int argc, char **argv) {
   };
   helpers["help"] = "Prints infromation about each possible action.";
 
-  actions["play"] = [&actions, &helpers] {
-    TicTacToe game;
+  actions["play"] = [&flags, &actions, &helpers] {
+    TicTacToe game(flags.count("--debug"));
     bool x = true;
     cout << game;
     Stopwatch human("You");
@@ -364,8 +374,8 @@ int main(int argc, char **argv) {
   };
   helpers["play"] = "Starts a game against the AI.";
 
-  actions["watch"] = [&actions, &helpers] {
-    TicTacToe game;
+  actions["watch"] = [&flags, &actions, &helpers] {
+    TicTacToe game(flags.count("--debug"));
     bool x = true;
     cout << game;
     Stopwatch stopwatch;
