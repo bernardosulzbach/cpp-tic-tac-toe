@@ -167,15 +167,20 @@ class TicTacToe {
 
   // Makes the best possible play for the player to move.
   int get_best_play() {
-    // The bigger the better for the opponent.
-    ScoreType best_so_far = WIN;
+    const PlayerType to_move = get_player_to_move();
+    ScoreType best_so_far = 0;
     int best_move = 0;
     for (int i = 0; i < TILES; i++) {
       if (is_free(i)) {
-        set(i, get_player_to_move());
-        ScoreType evaluation = evaluate(0);
+        set(i, to_move);
+        if (winner() == to_move) {
+          best_so_far = WIN;
+          best_move = i;
+          break;
+        }
+        ScoreType evaluation = WIN - evaluate(0);
         // Update when equal because the initial best move may not be valid.
-        if (evaluation <= best_so_far) {
+        if (evaluation >= best_so_far) {
           best_so_far = evaluation;
           best_move = i;
         }
@@ -183,7 +188,9 @@ class TicTacToe {
       }
     }
     if (debugging) {
-      cerr << "Evaluated to " << best_so_far << '\n';
+      cerr << "Winnable? " << (winnable() ? "Yes." : "No.") << '\n';
+      cerr << "Evaluated to " << best_so_far << "." << '\n';
+      cerr << '\n';
     }
     return best_move;
   }
