@@ -276,7 +276,7 @@ class Stopwatch {
   Stopwatch() : Stopwatch("") {
   }
 
-  Stopwatch(string id) : identifier(id) {
+  Stopwatch(const string &id) : identifier(id) {
   }
 
   void start() {
